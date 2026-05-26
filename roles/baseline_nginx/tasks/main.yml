@@ -1,0 +1,53 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+
+- name: Create certificate directory
+  file:
+    path: /etc/nginx/certs
+    state: directory
+    mode: "0755"
+
+- name: Generate self-signed certificate for baseline server
+  command: >
+    openssl req -x509 -nodes -days 365
+    -newkey rsa:2048
+    -keyout /etc/nginx/certs/server.key
+    -out /etc/nginx/certs/server.crt
+    -subj /CN=baseline
+  args:
+    creates: /etc/nginx/certs/server.crt
+
+- name: Install baseline web page
+  template:
+    src: index.html.j2
+    dest: /var/www/html/index.html
+    mode: "0644"
+
+- name: Configure baseline Nginx TLS site
+  template:
+    src: baseline.conf.j2
+    dest: /etc/nginx/sites-available/pqc-baseline.conf
+    mode: "0644"
+  notify: Restart Nginx
+
+- name: Disable default Nginx site
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Restart Nginx
+
+- name: Enable baseline site
+  file:
+    src: /etc/nginx/sites-available/pqc-baseline.conf
+    dest: /etc/nginx/sites-enabled/pqc-baseline.conf
+    state: link
+  notify: Restart Nginx
+
+- name: Ensure Nginx is enabled and started
+  systemd:
+    name: nginx
+    enabled: true
+    state: started

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="${1:-server}"
+DURATION="${2:-300}"
+INTERVAL="${3:-1}"
+
+RESULTS_DIR="/vagrant/results"
+mkdir -p "$RESULTS_DIR"
+
+TS="$(date +%Y%m%d-%H%M%S)"
+OUT="$RESULTS_DIR/${MODE}-resources-${TS}.csv"
+
+echo "timestamp,cpu_percent,mem_used_mb,mem_total_mb,mem_percent,load_1m" > "$OUT"
+
+END=$((SECONDS + DURATION))
+
+while [ "$SECONDS" -lt "$END" ]; do
+  timestamp="$(date -Iseconds)"
+  cpu_percent="$(top -bn1 | awk '/Cpu/ {print 100 - $8}')"
+  mem_used_mb="$(free -m | awk '/Mem:/ {print $3}')"
+  mem_total_mb="$(free -m | awk '/Mem:/ {print $2}')"
+  mem_percent="$(free | awk '/Mem:/ {printf "%.2f", ($3/$2)*100}')"
+  load_1m="$(awk '{print $1}' /proc/loadavg)"
+
+  echo "$timestamp,$cpu_percent,$mem_used_mb,$mem_total_mb,$mem_percent,$load_1m" >> "$OUT"
+  sleep "$INTERVAL"
+done
+
+echo "[OK] Resource CSV: $OUT"

@@ -1,0 +1,12 @@
+---
+elk_ip: "192.168.56.10"
+baseline_ip: "192.168.56.20"
+hybrid_ip: "192.168.56.30"
+client_ip: "192.168.56.40"
+elastic_version: "8.13.4"
+
+# Keep small enough for laptop labs.
+elasticsearch_heap: "512m"
+
+# Hybrid TLS group forced by the client during tests.
+hybrid_curve: "X25519MLKEM768"

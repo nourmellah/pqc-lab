@@ -1,0 +1,20 @@
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+setup.kibana:
+  host: "http://{{ elk_ip }}:5601"
+
+output.elasticsearch:
+  hosts: ["http://{{ elk_ip }}:9200"]
+
+processors:
+  - add_host_metadata: ~
+{% if server_mode == 'hybrid' %}
+  - add_docker_metadata: ~
+{% endif %}
+  - add_fields:
+      target: ''
+      fields:
+        server.mode: {{ server_mode }}
+        service.name: {{ service_name }}

@@ -1,0 +1,36 @@
+---
+- name: Create hybrid log directory
+  file:
+    path: /var/log/pqc-hybrid
+    state: directory
+    mode: "0755"
+
+- name: Pull OQS Nginx image
+  command: docker pull openquantumsafe/nginx
+  changed_when: false
+
+- name: Remove old OQS Nginx container if present
+  command: docker rm -f oqs-nginx
+  failed_when: false
+  changed_when: false
+
+- name: Start OQS Nginx container
+  command: >
+    docker run -d
+    --name oqs-nginx
+    --restart unless-stopped
+    -p 4433:4433
+    --label lab.server_mode=hybrid
+    --label lab.server_role=web
+    openquantumsafe/nginx
+  register: oqs_container
+  changed_when: oqs_container.rc == 0
+
+- name: Install hybrid status helper
+  copy:
+    dest: /usr/local/bin/pqc-hybrid-status
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      docker ps --filter name=oqs-nginx
+      docker logs oqs-nginx --tail 20

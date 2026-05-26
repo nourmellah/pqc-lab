@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DURATION_SECONDS="${1:-300}"
+CONCURRENCY="${2:-5}"
+PAUSE_SECONDS="${3:-1}"
+/opt/pqc-lab/run-experiment.sh baseline "$DURATION_SECONDS" "$CONCURRENCY" "$PAUSE_SECONDS" &
+/opt/pqc-lab/run-experiment.sh hybrid "$DURATION_SECONDS" "$CONCURRENCY" "$PAUSE_SECONDS" &
+wait

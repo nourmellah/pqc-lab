@@ -1,0 +1,34 @@
+---
+- name: Prepare all VMs
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Install ELK stack
+  hosts: elk
+  become: true
+  roles:
+    - elk
+
+- name: Install baseline classical HTTPS server
+  hosts: baseline
+  become: true
+  roles:
+    - baseline_nginx
+    - beats
+
+- name: Install hybrid OQS web server
+  hosts: hybrid
+  become: true
+  roles:
+    - docker_engine
+    - hybrid_oqs
+    - beats
+
+- name: Install client tools
+  hosts: client
+  become: true
+  roles:
+    - docker_engine
+    - client

@@ -1,0 +1,38 @@
+filebeat.inputs:
+  - type: filestream
+    id: {{ server_mode }}-nginx-files
+    enabled: true
+    paths:
+      - /var/log/nginx/*.log
+      - /var/log/pqc-hybrid/*.log
+    fields:
+      server.mode: {{ server_mode }}
+      service.name: {{ service_name }}
+    fields_under_root: true
+
+{% if server_mode == 'hybrid' %}
+  - type: filestream
+    id: hybrid-docker-json-logs
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*-json.log
+    parsers:
+      - container: ~
+    fields:
+      server.mode: hybrid
+      service.name: hybrid-oqs-nginx
+    fields_under_root: true
+{% endif %}
+
+setup.kibana:
+  host: "http://{{ elk_ip }}:5601"
+
+output.elasticsearch:
+  hosts: ["http://{{ elk_ip }}:9200"]
+
+processors:
+  - add_host_metadata: ~
+{% if server_mode == 'hybrid' %}
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+{% endif %}

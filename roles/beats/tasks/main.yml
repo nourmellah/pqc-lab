@@ -1,0 +1,97 @@
+---
+- name: Configure Elastic repository
+  include_role:
+    name: elastic_repo
+
+- name: Install Filebeat and Metricbeat
+  apt:
+    name:
+      - filebeat={{ elastic_version }}
+      - metricbeat={{ elastic_version }}
+    state: present
+    allow_downgrade: true
+
+- name: Configure Filebeat
+  template:
+    src: filebeat.yml.j2
+    dest: /etc/filebeat/filebeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Filebeat
+
+- name: Configure Metricbeat
+  template:
+    src: metricbeat.yml.j2
+    dest: /etc/metricbeat/metricbeat.yml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Metricbeat
+
+- name: Configure Metricbeat system module
+  template:
+    src: metricbeat-system.yml.j2
+    dest: /etc/metricbeat/modules.d/system.yml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Metricbeat
+
+- name: Configure Metricbeat nginx module for baseline
+  template:
+    src: metricbeat-nginx.yml.j2
+    dest: /etc/metricbeat/modules.d/nginx.yml
+    owner: root
+    group: root
+    mode: "0644"
+  when: server_mode == 'baseline'
+  notify: Restart Metricbeat
+
+- name: Disable Metricbeat nginx module on hybrid
+  copy:
+    dest: /etc/metricbeat/modules.d/nginx.yml
+    content: "# disabled on hybrid VM because OQS nginx runs as a container\n"
+    mode: "0644"
+  when: server_mode == 'hybrid'
+  notify: Restart Metricbeat
+
+- name: Configure Metricbeat docker module on hybrid
+  template:
+    src: metricbeat-docker.yml.j2
+    dest: /etc/metricbeat/modules.d/docker.yml
+    owner: root
+    group: root
+    mode: "0644"
+  when: server_mode == 'hybrid'
+  notify: Restart Metricbeat
+
+- name: Disable Metricbeat docker module on baseline
+  copy:
+    dest: /etc/metricbeat/modules.d/docker.yml
+    content: "# disabled on baseline VM\n"
+    mode: "0644"
+  when: server_mode == 'baseline'
+  notify: Restart Metricbeat
+
+- name: Run Filebeat setup
+  command: filebeat setup -e --strict.perms=false
+  changed_when: false
+  failed_when: false
+
+- name: Run Metricbeat setup
+  command: metricbeat setup -e --strict.perms=false
+  changed_when: false
+  failed_when: false
+
+- name: Enable and start Filebeat
+  systemd:
+    name: filebeat
+    enabled: true
+    state: started
+
+- name: Enable and start Metricbeat
+  systemd:
+    name: metricbeat
+    enabled: true
+    state: started

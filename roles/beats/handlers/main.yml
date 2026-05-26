@@ -1,0 +1,10 @@
+---
+- name: Restart Filebeat
+  systemd:
+    name: filebeat
+    state: restarted
+
+- name: Restart Metricbeat
+  systemd:
+    name: metricbeat
+    state: restarted

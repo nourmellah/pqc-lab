@@ -1,0 +1,42 @@
+---
+- name: Create client lab directory
+  file:
+    path: /opt/pqc-lab
+    state: directory
+    mode: "0755"
+
+- name: Create results directory
+  file:
+    path: /opt/pqc-lab/results
+    state: directory
+    owner: root
+    group: root
+    mode: "0777"
+
+- name: Pull OQS curl image
+  command: docker pull openquantumsafe/curl
+  changed_when: false
+
+- name: Install experiment runner
+  template:
+    src: run-experiment.sh.j2
+    dest: /opt/pqc-lab/run-experiment.sh
+    mode: "0755"
+
+- name: Install simultaneous runner
+  template:
+    src: run-both.sh.j2
+    dest: /opt/pqc-lab/run-both.sh
+    mode: "0755"
+
+- name: Install summarizer
+  copy:
+    src: summarize-results.py
+    dest: /opt/pqc-lab/summarize-results.py
+    mode: "0755"
+
+- name: Install verification helper
+  template:
+    src: verify-project.sh.j2
+    dest: /opt/pqc-lab/verify-project.sh
+    mode: "0755"

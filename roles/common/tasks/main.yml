@@ -1,0 +1,65 @@
+---
+- name: Wait for apt locks to disappear
+  shell: |
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
+          fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+      sleep 5
+    done
+  changed_when: false
+
+- name: Update apt cache
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install common packages
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - wget
+      - gnupg
+      - jq
+      - unzip
+      - python3
+      - python3-pip
+      - net-tools
+      - htop
+      - vim
+      - openssl
+    state: present
+
+- name: Ensure /etc/hosts contains lab hostnames
+  blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} PQC LAB HOSTS"
+    block: |
+      {{ elk_ip }} elk
+      {{ baseline_ip }} baseline
+      {{ hybrid_ip }} hybrid
+      {{ client_ip }} client
+
+- name: Disable needrestart interactive prompts if present
+  copy:
+    dest: /etc/needrestart/conf.d/99-pqc-lab.conf
+    content: "$nrconf{restart} = 'a';\n"
+    mode: "0644"
+  ignore_errors: true
+  
+- name: Create lab directory
+  file:
+    path: /opt/pqc-lab
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  
+- name: Install resource collector script
+  template:
+    src: collect-resources.sh.j2
+    dest: /opt/pqc-lab/collect-resources.sh
+    owner: root
+    group: root
+    mode: "0755"

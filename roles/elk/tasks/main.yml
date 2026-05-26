@@ -1,0 +1,205 @@
+---
+- name: Configure Elastic repository
+  include_role:
+    name: elastic_repo
+
+- name: Install Elasticsearch and Kibana
+  apt:
+    name:
+      - elasticsearch={{ elastic_version }}
+      - kibana={{ elastic_version }}
+    state: present
+    allow_downgrade: true
+
+- name: Configure Elasticsearch
+  template:
+    src: elasticsearch.yml.j2
+    dest: /etc/elasticsearch/elasticsearch.yml
+    owner: root
+    group: elasticsearch
+    mode: "0660"
+  notify: Restart Elasticsearch
+
+- name: Configure JVM heap
+  template:
+    src: pqc-lab-jvm.options.j2
+    dest: /etc/elasticsearch/jvm.options.d/pqc-lab.options
+    owner: root
+    group: elasticsearch
+    mode: "0644"
+  notify: Restart Elasticsearch
+  
+- name: Ensure Elasticsearch data and log directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: elasticsearch
+    group: elasticsearch
+    mode: "0755"
+  loop:
+    - /var/lib/elasticsearch
+    - /var/log/elasticsearch
+  
+- name: Set vm.max_map_count for Elasticsearch
+  sysctl:
+    name: vm.max_map_count
+    value: "262144"
+    state: present
+    reload: true
+
+- name: Set Elasticsearch file descriptor limit
+  file:
+    path: /etc/systemd/system/elasticsearch.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure Elasticsearch systemd limits
+  copy:
+    dest: /etc/systemd/system/elasticsearch.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Service]
+      LimitNOFILE=65535
+      LimitNPROC=4096
+      TimeoutStartSec=180
+      
+- name: Remove conflicting Elasticsearch auto-generated secure settings
+  shell: |
+    for setting in \
+      xpack.security.transport.ssl.keystore.secure_password \
+      xpack.security.transport.ssl.truststore.secure_password \
+      xpack.security.http.ssl.keystore.secure_password
+    do
+      if /usr/share/elasticsearch/bin/elasticsearch-keystore list | grep -q "^${setting}$"; then
+        /usr/share/elasticsearch/bin/elasticsearch-keystore remove "${setting}"
+      fi
+    done
+  args:
+    executable: /bin/bash
+
+- name: Reload systemd after Elasticsearch override
+  systemd:
+    daemon_reload: true
+
+- name: Enable and start Elasticsearch
+  systemd:
+    name: elasticsearch
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for Elasticsearch HTTP API
+  uri:
+    url: "http://{{ elk_ip }}:9200"
+    method: GET
+    status_code: 200
+  register: es_status
+  until: es_status.status == 200
+  retries: 60
+  delay: 5
+
+- name: Apply single-node cluster settings
+  uri:
+    url: "http://{{ elk_ip }}:9200/_cluster/settings"
+    method: PUT
+    body_format: json
+    body:
+      persistent:
+        cluster.routing.allocation.disk.threshold_enabled: false
+    status_code: [200]
+
+- name: Force zero replicas on existing indices
+  uri:
+    url: "http://{{ elk_ip }}:9200/_settings?expand_wildcards=all"
+    method: PUT
+    body_format: json
+    body:
+      index:
+        number_of_replicas: 0
+    status_code: [200]
+  ignore_errors: true
+
+- name: Configure Kibana
+  template:
+    src: kibana.yml.j2
+    dest: /etc/kibana/kibana.yml
+    owner: root
+    group: kibana
+    mode: "0660"
+  notify: Restart Kibana
+
+- name: Enable and start Kibana
+  systemd:
+    name: kibana
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Wait for Kibana API
+  uri:
+    url: "http://127.0.0.1:5601/api/status"
+    method: GET
+    status_code:
+      - 200
+      - 503
+    return_content: true
+  register: kibana_status
+  retries: 60
+  delay: 5
+  until:
+    - kibana_status.status == 200
+    - kibana_status.content | default('') is search('available')
+
+- name: Create import helper directory
+  file:
+    path: /opt/pqc-lab/kibana/exports
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy dashboard exports if present
+  copy:
+    src: "{{ item }}"
+    dest: "/opt/pqc-lab/kibana/exports/{{ item | basename }}"
+    mode: "0644"
+  with_fileglob:
+    - "{{ playbook_dir }}/kibana/exports/*.ndjson"
+  ignore_errors: true
+
+- name: Install dashboard import script
+  copy:
+    dest: /opt/pqc-lab/import-dashboards.sh
+    owner: root
+    group: root
+    mode: "0755"
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      KIBANA_URL="http://127.0.0.1:5601"
+      EXPORT_DIR="/opt/pqc-lab/kibana/exports"
+
+      if ! compgen -G "$EXPORT_DIR/*.ndjson" > /dev/null; then
+        echo "[i] No dashboard exports found in $EXPORT_DIR"
+        exit 0
+      fi
+
+      until curl -s "$KIBANA_URL/api/status" | grep -q '"level":"available"'; do
+        sleep 5
+      done
+
+      for f in "$EXPORT_DIR"/*.ndjson; do
+        echo "[+] Importing $f"
+        curl -sS -X POST "$KIBANA_URL/api/saved_objects/_import?overwrite=true" \
+          -H "kbn-xsrf: true" \
+          --form file=@"$f"
+        echo
+      done
+
+      echo "[OK] Dashboard import finished"
+  

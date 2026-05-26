@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+KIBANA_URL="http://{{ elk_ip }}:5601"
+EXPORT_DIR="/opt/pqc-lab/kibana/exports"
+shopt -s nullglob
+files=("$EXPORT_DIR"/*.ndjson)
+if [ ${#files[@]} -eq 0 ]; then
+  echo "[i] No dashboard exports found in $EXPORT_DIR"
+  exit 0
+fi
+until curl -s "$KIBANA_URL/api/status" | grep -q '"level":"available"'; do
+  sleep 5
+done
+for f in "${files[@]}"; do
+  echo "[+] Importing $f"
+  curl -sS -X POST "$KIBANA_URL/api/saved_objects/_import?overwrite=true" \
+    -H "kbn-xsrf: true" \
+    --form file=@"$f"
+  echo
+done
