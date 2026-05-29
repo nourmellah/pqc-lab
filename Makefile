@@ -2,7 +2,7 @@ DURATION ?= 300
 CONCURRENCY ?= 5
 INTERVAL ?= 1
 
-.PHONY: up provision verify baseline hybrid both summarize pull-results import-dashboards stop destroy status
+.PHONY: up provision verify baseline hybrid both summarize pull-results import-dashboards clean-results stop destroy status
 
 up:
 	vagrant up --no-provision
@@ -37,11 +37,13 @@ summarize:
 
 pull-results:
 	mkdir -p results
-	vagrant ssh client -c 'sudo tar -C /opt/pqc-lab/results -czf /tmp/pqc-results.tgz .'
-	vagrant ssh-config client > .client-ssh-config
-	scp -F .client-ssh-config client:/tmp/pqc-results.tgz results/pqc-results.tgz
-	tar -xzf results/pqc-results.tgz -C results
-	@echo "[OK] Results copied to ./results"
+	vagrant ssh client -c 'sudo bash -lc "mkdir -p /vagrant/results && cp -a /opt/pqc-lab/results/. /vagrant/results/ 2>/dev/null || true"'
+	@echo "[OK] Results are available in ./results"
+
+clean-results:
+	rm -rf results/*
+	touch results/.gitkeep
+	@echo "[OK] Local results folder cleaned"
 
 import-dashboards:
 	./scripts/import-dashboards.sh

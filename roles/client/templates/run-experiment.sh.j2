@@ -5,6 +5,7 @@ MODE="${1:-baseline}"
 DURATION_SECONDS="${2:-300}"
 CONCURRENCY="${3:-5}"
 PAUSE_SECONDS="${4:-1}"
+
 RESULTS_DIR="/vagrant/results"
 mkdir -p "$RESULTS_DIR"
 chmod 777 "$RESULTS_DIR"
@@ -15,12 +16,8 @@ OUT_META="$RESULTS_DIR/${MODE}-${RUN_ID}.meta"
 
 if [ "$MODE" = "baseline" ]; then
   URL="https://{{ baseline_ip }}"
-  CURL_MODE="system"
-  EXTRA=""
 elif [ "$MODE" = "hybrid" ]; then
   URL="https://{{ hybrid_ip }}:4433"
-  CURL_MODE="oqs"
-  EXTRA="--curves {{ hybrid_curve }}"
 else
   echo "Usage: $0 baseline|hybrid [duration_seconds] [concurrency] [pause_seconds]"
   exit 1
@@ -34,33 +31,73 @@ duration_seconds=$DURATION_SECONDS
 concurrency=$CONCURRENCY
 pause_seconds=$PAUSE_SECONDS
 url=$URL
-extra=$EXTRA
 EOF
 
 echo "timestamp,http_code,time_total,time_connect,time_appconnect,time_starttransfer,size_download" > "$OUT_CSV"
 
-end=$(( $(date +%s) + DURATION_SECONDS ))
-while [ "$(date +%s)" -lt "$end" ]; do
-  i=1
-  while [ "$i" -le "$CONCURRENCY" ]; do
-    (
-      ts=$(date -Is)
-      if [ "$CURL_MODE" = "system" ]; then
+run_baseline() {
+  local end
+  end=$(( $(date +%s) + DURATION_SECONDS ))
+
+  while [ "$(date +%s)" -lt "$end" ]; do
+    local i=1
+
+    while [ "$i" -le "$CONCURRENCY" ]; do
+      (
+        ts="$(date -Is)"
         curl -ks -o /dev/null \
           -w "$ts,%{http_code},%{time_total},%{time_connect},%{time_appconnect},%{time_starttransfer},%{size_download}\n" \
           "$URL" >> "$OUT_CSV"
-      else
-        docker run --rm openquantumsafe/curl \
-          curl -ks -o /dev/null \
-          -w "$ts,%{http_code},%{time_total},%{time_connect},%{time_appconnect},%{time_starttransfer},%{size_download}\n" \
-          $EXTRA "$URL" >> "$OUT_CSV"
-      fi
-    ) &
-    i=$((i+1))
+      ) &
+
+      i=$((i + 1))
+    done
+
+    wait
+    sleep "$PAUSE_SECONDS"
   done
-  wait
-  sleep "$PAUSE_SECONDS"
-done
+}
+
+run_hybrid() {
+  docker run --rm \
+    -v "$RESULTS_DIR:/results" \
+    -e URL="$URL" \
+    -e OUT_FILE="/results/$(basename "$OUT_CSV")" \
+    -e DURATION_SECONDS="$DURATION_SECONDS" \
+    -e CONCURRENCY="$CONCURRENCY" \
+    -e PAUSE_SECONDS="$PAUSE_SECONDS" \
+    -e CURVE="{{ hybrid_curve }}" \
+    openquantumsafe/curl \
+    sh -c '
+      set -e
+
+      end=$(( $(date +%s) + DURATION_SECONDS ))
+
+      while [ "$(date +%s)" -lt "$end" ]; do
+        i=1
+
+        while [ "$i" -le "$CONCURRENCY" ]; do
+          (
+            ts=$(date -Is)
+            curl -ks -o /dev/null \
+              -w "$ts,%{http_code},%{time_total},%{time_connect},%{time_appconnect},%{time_starttransfer},%{size_download}\n" \
+              --curves "$CURVE" "$URL" >> "$OUT_FILE"
+          ) &
+
+          i=$((i + 1))
+        done
+
+        wait
+        sleep "$PAUSE_SECONDS"
+      done
+    '
+}
+
+if [ "$MODE" = "baseline" ]; then
+  run_baseline
+else
+  run_hybrid
+fi
 
 echo "end_time=$(date -Is)" >> "$OUT_META"
 

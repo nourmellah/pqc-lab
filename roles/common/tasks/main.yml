@@ -7,6 +7,18 @@
       sleep 5
     done
   changed_when: false
+  
+- name: Repair interrupted dpkg state
+  command: dpkg --configure -a
+  changed_when: false
+  failed_when: false
+
+- name: Repair broken apt dependencies
+  apt:
+    upgrade: false
+    update_cache: false
+    state: fixed
+  failed_when: false
 
 - name: Update apt cache
   apt:

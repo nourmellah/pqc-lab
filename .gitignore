@@ -1,5 +1,6 @@
 .vagrant/
-results/
+results/*
+!results/.gitkeep
 *.log
 *.retry
 __pycache__/

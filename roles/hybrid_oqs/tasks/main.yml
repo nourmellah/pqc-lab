@@ -1,36 +1,40 @@
 ---
-- name: Create hybrid log directory
-  file:
-    path: /var/log/pqc-hybrid
-    state: directory
-    mode: "0755"
+- name: Install Python Docker SDK
+  apt:
+    name:
+      - python3-docker
+    state: present
+
+- name: Ensure Docker service is running
+  systemd:
+    name: docker
+    enabled: true
+    state: started
 
 - name: Pull OQS Nginx image
-  command: docker pull openquantumsafe/nginx
-  changed_when: false
+  community.docker.docker_image:
+    name: openquantumsafe/nginx
+    source: pull
 
-- name: Remove old OQS Nginx container if present
-  command: docker rm -f oqs-nginx
-  failed_when: false
-  changed_when: false
-
-- name: Start OQS Nginx container
-  command: >
-    docker run -d
-    --name oqs-nginx
-    --restart unless-stopped
-    -p 4433:4433
-    --label lab.server_mode=hybrid
-    --label lab.server_role=web
-    openquantumsafe/nginx
-  register: oqs_container
-  changed_when: oqs_container.rc == 0
+- name: Run OQS Nginx container
+  community.docker.docker_container:
+    name: oqs-nginx
+    image: openquantumsafe/nginx
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "4433:4433"
+    labels:
+      lab.server_mode: hybrid
+      lab.server_role: web
 
 - name: Install hybrid status helper
   copy:
     dest: /usr/local/bin/pqc-hybrid-status
+    owner: root
+    group: root
     mode: "0755"
     content: |
       #!/usr/bin/env bash
       docker ps --filter name=oqs-nginx
-      docker logs oqs-nginx --tail 20
+      docker logs oqs-nginx --tail 30

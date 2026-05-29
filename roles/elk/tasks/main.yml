@@ -171,6 +171,23 @@
     - "{{ playbook_dir }}/kibana/exports/*.ndjson"
   ignore_errors: true
 
+- name: Create import helper directory
+  file:
+    path: /opt/pqc-lab/kibana/exports
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Copy dashboard exports if present
+  copy:
+    src: "{{ item }}"
+    dest: "/opt/pqc-lab/kibana/exports/{{ item | basename }}"
+    mode: "0644"
+  with_fileglob:
+    - "{{ playbook_dir }}/kibana/exports/*.ndjson"
+  ignore_errors: true
+
 - name: Install dashboard import script
   copy:
     dest: /opt/pqc-lab/import-dashboards.sh
@@ -202,4 +219,9 @@
       done
 
       echo "[OK] Dashboard import finished"
+
+- name: Run dashboard import script
+  command: /opt/pqc-lab/import-dashboards.sh
+  changed_when: false
+  failed_when: false
   
