@@ -145,19 +145,20 @@ Example: run a 15-minute hybrid test with the same profile:
 vagrant ssh client -c 'sudo /opt/pqc-lab/run-experiment.sh hybrid 900 5 1'
 ```
 
-Recommended final tests:
+Recommended initial test:
 
 ```bash
-make baseline DURATION=900 CONCURRENCY=5 INTERVAL=1
-make hybrid DURATION=900 CONCURRENCY=5 INTERVAL=1
+make baseline DURATION=60 CONCURRENCY=5 INTERVAL=1
+make hybrid DURATION=60 CONCURRENCY=5 INTERVAL=1
 make summarize
 ```
 
 For stronger final measurements:
 
 ```bash
-make baseline DURATION=1800 CONCURRENCY=5 INTERVAL=1
-make hybrid DURATION=1800 CONCURRENCY=5 INTERVAL=1
+make clean-results
+make baseline DURATION=43200 CONCURRENCY=5 INTERVAL=5
+make hybrid DURATION=43200 CONCURRENCY=5 INTERVAL=5
 make summarize
 ```
 
