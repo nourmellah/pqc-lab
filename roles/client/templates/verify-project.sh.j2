@@ -7,15 +7,12 @@ curl -fsS http://{{ elk_ip }}:9200 >/dev/null && echo "[OK] Elasticsearch reacha
 echo "[+] Checking Kibana"
 curl -fsS http://{{ elk_ip }}:5601/api/status | grep -q 'available' && echo "[OK] Kibana available"
 
-echo "[+] Checking baseline HTTPS endpoint"
-curl -ks https://{{ baseline_ip }} | head -n 5
-
 echo
-echo "[+] Checking hybrid endpoint default negotiation"
+echo "[+] Checking baseline HTTPS endpoint with OQS curl and classical X25519"
 docker run --rm openquantumsafe/curl \
-  curl -vk https://{{ hybrid_ip }}:4433 2>&1 | grep "SSL connection using" || true
+  curl -vk https://{{ baseline_ip }} --curves X25519 2>&1 | grep "SSL connection using" || true
 
 echo
-echo "[+] Checking hybrid handshake explicitly"
+echo "[+] Checking hybrid HTTPS endpoint with OQS curl and {{ hybrid_curve }}"
 docker run --rm openquantumsafe/curl \
   curl -vk https://{{ hybrid_ip }}:4433 --curves {{ hybrid_curve }} 2>&1 | grep "SSL connection using" || true

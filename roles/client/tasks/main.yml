@@ -40,11 +40,4 @@
     src: verify-project.sh.j2
     dest: /opt/pqc-lab/verify-project.sh
     mode: "0755"
-    
-- name: Install resource collector script
-  template:
-    src: collect-resources.sh.j2
-    dest: /opt/pqc-lab/collect-resources.sh
-    owner: root
-    group: root
-    mode: "0755"
+  

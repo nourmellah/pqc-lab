@@ -9,7 +9,7 @@ Vagrant.configure("2") do |config|
 
   machines = {
     "elk" =>      { ip: "192.168.56.10", memory: 4096, cpus: 2 },
-    "baseline" => { ip: "192.168.56.20", memory: 1024, cpus: 1 },
+    "baseline" => { ip: "192.168.56.20", memory: 2048, cpus: 2 },
     "hybrid" =>   { ip: "192.168.56.30", memory: 2048, cpus: 2 },
     "client" =>   { ip: "192.168.56.40", memory: 1024, cpus: 1 }
   }
