@@ -33,7 +33,7 @@ both:
 	wait
 
 summarize:
-	vagrant ssh client -c 'sudo python3 /opt/pqc-lab/summarize-results.py /vagrant/results'
+	vagrant ssh client -c 'sudo python3 /opt/pqc-lab/summarize-results.py /vagrant/results /vagrant/results/summary.csv'
 
 pull-results:
 	mkdir -p results
